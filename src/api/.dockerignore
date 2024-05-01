@@ -1,0 +1,9 @@
+# Ignores itself
+.dockerignore
+
+# Ignores .gitignore file
+.gitignore
+
+# Ignores python common files
+*.pyc
+__pycache__/

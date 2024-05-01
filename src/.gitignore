@@ -1,0 +1,3 @@
+# Ignores enviroment tools
+venv/
+*.env
