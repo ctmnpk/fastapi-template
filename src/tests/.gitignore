@@ -1,3 +1,7 @@
 # Ignores python common files
 *.pyc
 __pycache__/
+
+# Ignores pytest stuff files 
+.pytest_cache/
+*.coverage
