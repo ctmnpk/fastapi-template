@@ -75,4 +75,6 @@ async def signup(user: UserRequest):
         _logger.warning(
             f"Unable to complete user signup for: {user.username} | Error: {str(e)}"
         )
-        raise HTTPException(status_code=400, detail="Unable to complete user signup")
+        raise HTTPException(
+            status_code=400, detail="Unable to complete user signup"
+        )
