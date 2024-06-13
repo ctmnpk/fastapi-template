@@ -7,3 +7,9 @@
 # Ignores python common files
 *.pyc
 __pycache__/
+
+# Enviroment stuff
+.venv/
+
+# Linter stuff
+.ruff_cache
