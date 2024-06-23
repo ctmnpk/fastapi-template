@@ -1,53 +1,66 @@
-from fastapi import APIRouter, HTTPException
+from fastapi.routing import APIRouter
+from fastapi.exceptions import HTTPException, FastAPIError
 from sqlalchemy import and_, insert, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 
-from auth import TokenHandler
-from models import UserRequest
+from auth import TokenEncoder
+from models.schemas import UserSignInRequest, UserSignUpRequest
 from utils import Logger
-from migrations import connection, Users
+from database import connection, Users
 
-_logger = Logger(logger_name=__name__)
+_logger = Logger(logger_name=__name__)._get_logger()
+
+_encoder = TokenEncoder()
 
 auth_router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
 
 @auth_router.post("/signin")
-async def signin(user: UserRequest):
-    _logger.info("SignIn service called")
+async def signin(user: UserSignInRequest):
+    _logger.info("SignIn route called")
+    identifier = check_for_username_or_email(user=user)
     try:
         query = select(Users).where(
-            and_(
-                or_(Users.email == user.email, Users.username == user.username),
-                Users.password == user.password,
+            or_(
+                and_(
+                    Users.username == user.username,
+                    Users.password == user.password,
+                ),
+                and_(
+                    Users.email == user.email,
+                    Users.password == user.password
+                ),
             )
         )
-        result = connection.execute(query).first()
-        if not result:
-            raise HTTPException(status_code=400, detail="User not found")
-        _logger.info(f"User authenticated {user.username}")
-        return TokenHandler().token_encoder(result.id)
+        user_info = connection.execute(query).first()
+        if not user_info:
+            _logger.info("User not found or not exists: %s", identifier())
+            raise HTTPException(status_code=404, detail="User not found")
+        _logger.info("User authenticated: %s", identifier())
+        return _encoder(user_info.id, user_info.role)
     except SQLAlchemyError as e:
         _logger.error(
-            f"SQLAlchemy Error during user signin for: {user.username} | error: {str(e)}"
+            "SQLAlchemy Error during user signin for: %s | Error: %s",
+            identifier(),
+            str(e)
         )
         raise HTTPException(
-            status_code=500, detail="Database error during signin"
+            status_code=400, detail="Transaction couldn't be completed"
         )
-    except Exception as e:
-        _logger.warning(
-            f"Unable to complete user signin for: {user.username} | erro: {str(e)}"
+    except FastAPIError as e:
+        _logger.info(
+            "Unable to complete user signin for: %s | Erro: %s",
+            identifier(),
+            str(e)
         )
-        raise HTTPException(
-            status_code=400, detail="Unable to complete user signin"
-        )
+        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
 
 
 @auth_router.post("/signup")
-async def signup(user: UserRequest):
-    _logger.info("SignUp service called")
+async def signup(user: UserSignUpRequest):
+    _logger.info("SignUp route called")
     existing_user_criteria = select(Users).where(
-        or_(Users.username == user.username, Users.email == user.email)
+        and_(Users.username == user.username, Users.email == user.email)
     )
     try:
         user_exists = connection.execute(existing_user_criteria).fetchone()
@@ -57,24 +70,35 @@ async def signup(user: UserRequest):
                 detail="User with the same username or email already exists",
             )
         query = insert(Users).values(
-            username=user.username, password=user.password, email=user.email
+            username=user.username,
+            password=user.password,
+            email=user.email,
+            name=user.name,
+            age=user.age,
+            gender=user.gender,
         )
         connection.execute(query)
         connection.commit()
-        _logger.info(f"User created: {user.username}")
+        _logger.info("User created: %s", user.username)
         return "User created"
     except SQLAlchemyError as e:
         _logger.error(
-            f"SQLAlchemy Error during user signin for: {user.username} | Error: {str(e)}"
+            "SQLAlchemy Error during user signin for: %s | Error: %s",
+            user.username,
+            str(e)
         )
         connection.rollback()
         raise HTTPException(
-            status_code=500, detail="Database error during signup"
+            status_code=400, detail="Transaction couldn't be completed"
         )
-    except Exception as e:
-        _logger.warning(
-            f"Unable to complete user signup for: {user.username} | Error: {str(e)}"
+    except FastAPIError as e:
+        _logger.info(
+            "Unable to complete user signup for: %s | Error: %s",
+            user.username,
+            str(e)
         )
-        raise HTTPException(
-            status_code=400, detail="Unable to complete user signup"
-        )
+        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
+
+
+def check_for_username_or_email(user: UserSignInRequest):
+    return lambda: user.username if user.username is not None else user.email
