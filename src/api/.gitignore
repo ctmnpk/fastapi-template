@@ -1,3 +1,6 @@
 # Ignores python common files
 *.pyc
 __pycache__/
+
+# Ignores ruff stuff
+.ruff_cache/
