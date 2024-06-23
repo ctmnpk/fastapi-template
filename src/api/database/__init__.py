@@ -4,8 +4,8 @@ __author__ = "ctmnpk"
 
 
 # Packge modules, submodules and functions importing
-from .logger import Logger
+from .postgres import connection, Todos, Users
 
 
 # Defined importing for '*' wildcard
-__all__ = ["Logger"]
+__all__ = ["connection", "Todos", "Users"]
