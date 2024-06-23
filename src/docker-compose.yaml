@@ -4,6 +4,8 @@ services:
   api:
     image: baeldung/fastapi-template:1.0.0
     container_name: fastapi
+    env_file:
+      - .env
     build:
       context: api
       dockerfile: Dockerfile
